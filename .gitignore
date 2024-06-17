@@ -3,6 +3,7 @@ Datasets
 Hidden_Folder
 model_evaluation
 runs
+my_dict.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
