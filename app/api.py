@@ -1,4 +1,3 @@
-import faiss
 import json
 import numpy as np
 import pandas as pd
@@ -60,7 +59,7 @@ try:
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
     # Load the decoder pickle
-    with open("decoder_pickle", 'rb') as decoder_pickle:
+    with open("Pickle_Files/decoder_pickle", 'rb') as decoder_pickle:
         decoder = pickle.load(decoder_pickle)
     
     # Create the model
@@ -70,7 +69,7 @@ try:
     feature_extraction_model.to(device)
 
     # Load the parameters
-    model_parameters = torch.load('image_model.pt', map_location=torch.device(device))
+    model_parameters = torch.load('Model_Parameters/image_model.pt', map_location=torch.device(device))
     feature_extraction_model.load_state_dict(model_parameters)
     print('Model parameters succesfully loaded!')
     pass
@@ -78,25 +77,9 @@ except:
     raise OSError("No Feature Extraction model found. Check that you have the decoder and the model in the correct location.")
 
 try:
-    # Load up the json file containing key value pairs of image ids and image embeddings, and store it as 'new_dict'
-    with open('image_embeddings.json', 'r') as file:
-        new_dict = json.load(file)
-
-    # 'Unsqueeze' one layer of the values in new_dict
-    for key, value in new_dict.items():
-        new_dict[key] = [value]
-    
-    # Create a dataframe of the image ids and image embeddings
-    vectors_df = pd.DataFrame.from_dict(new_dict, orient='index', columns=['image embedding'])
-
-    # Create a numpy array with all the image embeddings
-    vectors = np.vstack(vectors_df['image embedding']).astype(np.float32)
-
-    # Initialise the FAISS model
-    index = faiss.IndexFlatL2(1000)
-
-    # Add the image embeddings to the model
-    index.add(vectors)
+    # Load up the faiss seach index from `faiss_pickle`.
+    with open("Pickle_Files/faiss_pickle", 'rb') as pickly:
+        index = pickle.load(pickly)
     pass
 except:
     raise OSError("No Image model found. Check that you have the encoder and the model in the correct location.")
@@ -142,21 +125,20 @@ def predict_image(image: UploadFile = File(...)):
 def predict_combined(image: UploadFile = File(...), text: str = Form(...)):
     print(text)
 
+    # Extract the image embedding from the FASTApi JSON Response obtained from `predict_image`:
     response = predict_image(image)
-
     response = response.body
-
     response = json.loads(response)
-
     embeddings = response['features']
 
+    # Cast the image embedding as a numpy array of type `float32`.
     embeddings = np.array(embeddings)
-
     embeddings = embeddings.astype('float32')
 
-    # Use the FAISS algorithm to retrieve the indicies of the closest images
+    # Use the FAISS algorithm to retrieve the indicies of the closest images.
     nearest_vectors = index.search(embeddings, 3)[1]
 
+    # Turns the FAISS results to a normal python list, so that it can be parsed by JSON.
     nearest_vectors = nearest_vectors.tolist()
 
     return JSONResponse(content={

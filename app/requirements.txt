@@ -1,5 +1,5 @@
 boto3 == 1.24.9
-faiss_cpu==1.7.3
+faiss_cpu==1.7.2
 fastapi==0.111.0
 numpy==1.23.5
 pandas==1.5.3
