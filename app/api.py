@@ -48,7 +48,7 @@ class FeatureExtractor(nn.Module):
             x = self.layers(image)
             return x
 
-# Don't change this, it will be useful for one of the methods in the API
+
 class TextItem(BaseModel):
     text: str
 
