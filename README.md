@@ -32,19 +32,19 @@ A docker image of the project can be found at:
 https://hub.docker.com/repository/docker/bojackmanhorse/faiss_app
 ```
 
-To download the docker image, run 
+To download the docker image, run the following command within a terminal:
 
 ```
 docker pull bojackmanhorse/faiss_app:v1.3
 ```
 
-in a terminal. Then to run the docker image, run
+Then to run the docker image, run the following command:
 
 ```
 docker run -p 8080:8080 -it bojackmanhorse/faiss_app:v1.3
 ```
 
-You should see the followin in the terminal:
+You should see the following messages in the terminal:
 
 ![Image](Readme_images/Screenshot%20from%202024-07-01%2015-34-57.png)
 
