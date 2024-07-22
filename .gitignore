@@ -3,7 +3,7 @@ Datasets
 Hidden_Folder
 model_evaluation
 runs
-app/Model_Parameters
+app/Model_Parameters/*
 app/Pickle_Files/faiss_pickle
 
 
