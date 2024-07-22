@@ -4,6 +4,8 @@ Hidden_Folder
 model_evaluation
 runs
 image_embeddings.json
+app/Model_Parameters
+app/Pickle_Files/faiss_pickle
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -15,6 +15,8 @@ from image_processor import process_image_as_pil
 from PIL import Image
 from pydantic import BaseModel
 from torchvision import models
+from transformers import BertModel, BertTokenizer
+
 
 class FeatureExtractor(nn.Module):
     """
@@ -48,6 +50,37 @@ class FeatureExtractor(nn.Module):
             x = self.layers(image)
             return x
 
+tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
+
+class BertNeuralNetwork(torch.nn.Module):
+    def __init__(self, decoder:dict) -> None:
+        super().__init__()
+        self.bert = BertModel.from_pretrained('bert-base-cased')
+        self.layers = torch.nn.Sequential(
+            torch.nn.Dropout(p=0.3),
+            torch.nn.Linear(768, 1000),
+        )
+
+        for _, param in self.bert.named_parameters():
+            param.requires_grad = False
+    
+    def forward(self, X):
+        X = self.bert(**X)
+        X = X['pooler_output']
+        X = self.layers(X)
+        
+        return X
+    
+    def predict(self, X):
+        """
+        Define a forward method which does not use grad, to speed up computaion when not training the model.
+        """
+        with torch.no_grad():
+            X = self.bert(**X)
+            X = X['pooler_output']
+            X = self.layers(X)
+            
+            return X
 
 class TextItem(BaseModel):
     text: str
@@ -63,14 +96,20 @@ try:
         decoder = pickle.load(decoder_pickle)
     
     # Create the model
-    feature_extraction_model = FeatureExtractor(decoder)
+    image_feature_extraction_model = FeatureExtractor(decoder)
+    text_feature_extraction_model = BertNeuralNetwork(decoder)
 
     # Load the model to device
-    feature_extraction_model.to(device)
+    image_feature_extraction_model.to(device)
+    text_feature_extraction_model.to(device)
 
     # Load the parameters
-    model_parameters = torch.load('Model_Parameters/image_model.pt', map_location=torch.device(device))
-    feature_extraction_model.load_state_dict(model_parameters)
+    image_model_parameters = torch.load('Model_Parameters/image_model.pt', map_location=torch.device(device))
+    image_feature_extraction_model.load_state_dict(image_model_parameters)
+
+    text_model_parameters = torch.load('Model_Parameters/text_model.pt', map_location=torch.device(device))
+    text_feature_extraction_model.load_state_dict(text_model_parameters)
+
     print('Model parameters succesfully loaded!')
     pass
 except:
@@ -94,7 +133,7 @@ def healthcheck():
     return {"message": msg}
 
   
-@app.post('/predict/feature_embedding')
+@app.post('/predict/feature_embedding/image')
 def predict_image(image: UploadFile = File(...)):
 
     pil_image = Image.open(image.file)
@@ -106,7 +145,7 @@ def predict_image(image: UploadFile = File(...)):
     image_tensor = image_tensor.to(device)
 
     # Extract the image_embeddings from the feature extraction model
-    feature_embeddings = feature_extraction_model(image_tensor)
+    feature_embeddings = image_feature_extraction_model(image_tensor)
 
     # Stores feature embedding tensor as cpu and removes grad attribute so we can cast it as a numpy array
     feature_embeddings = feature_embeddings.to('cpu')
@@ -120,19 +159,51 @@ def predict_image(image: UploadFile = File(...)):
     return JSONResponse(content={
     "features": feature_embeddings, # Return the image embeddings here
     })
+
+@app.post('/predict/feature_embedding/text')
+def predict_text(text: str = Form(...)):
+    tokenized_text = tokenizer(text, return_tensors="pt")
+
+    input_dictionary = {
+        'input_ids':tokenized_text["input_ids"].view(1,-1).to(device),
+        'attention_mask':tokenized_text["attention_mask"].view(1,-1).to(device)
+    }
+
+    model_output = text_feature_extraction_model(input_dictionary)
+
+    model_output = model_output.to('cpu')
+    model_output = model_output.detach().numpy()
+    model_output = np.array(model_output)
+
+    model_output = model_output.tolist()
+
+    return JSONResponse(content={
+    "features": model_output, # Return the image embeddings here
+    })
   
 @app.post('/predict/similar_images')
 def predict_combined(image: UploadFile = File(...), text: str = Form(...)):
     print(text)
 
     # Extract the image embedding from the FASTApi JSON Response obtained from `predict_image`:
-    response = predict_image(image)
-    response = response.body
-    response = json.loads(response)
-    embeddings = response['features']
+    image_response = predict_image(image)
+    image_response = image_response.body
+    image_response = json.loads(image_response)
+    image_embeddings = image_response['features']
+    image_embeddings = np.array(image_embeddings)
+
+    text_response = predict_text(text)
+    text_response = text_response.body
+    text_response = json.loads(text_response)
+    text_embeddings = text_response['features']
+    text_embeddings = np.array(text_embeddings)
+
+    embeddings = np.concatenate((image_embeddings, text_embeddings), axis = 1)
+
+    #embeddings = np.zeros((1, 2000))
 
     # Cast the image embedding as a numpy array of type `float32`.
-    embeddings = np.array(embeddings)
+    
     embeddings = embeddings.astype('float32')
 
     # Use the FAISS algorithm to retrieve the indicies of the closest images.
