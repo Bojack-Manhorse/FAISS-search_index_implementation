@@ -64,7 +64,9 @@ In a browser to test the program.
 
 ### Docker build method
 
-A dockerfile is contained within this repository. To run it, first clone the repository and navigate to the folder `app`. Then build the docker image via:
+To build the docker image locally, the models must first be trained. Run **all** the code blocks in the file `Sandbox.ipynb`, uncommenting any training loops. The model parameters and FAISS index pickle file will all be placed in the correct directories.
+
+Then the docker file must be build. Navigate to the folder `app` within a terminal. Then build the docker image via:
 
 ```
 docker build . -t <tage_name>
